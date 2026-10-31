@@ -1,0 +1,8 @@
+{
+  "appDisplayName": "F&O Scope Agent V8",
+  "appId": "e002b164-775c-439a-8c6e-773be0edde1f",
+  "buildEntryPoint": "index.html",
+  "buildPath": "dist",
+  "environmentId": "7ffaec35-1413-e4cf-b2b8-b9bf0f08715c",
+  "repositoryId": "22da8cee-4f93-4ba1-9f45-910fff245827"
+}
