@@ -1,5 +1,5 @@
 {
-  "appDisplayName": "F&O Scope Agent V8",
+  "appDisplayName": "F&O Scope Agent",
   "appId": "e002b164-775c-439a-8c6e-773be0edde1f",
   "buildEntryPoint": "index.html",
   "buildPath": "dist",
