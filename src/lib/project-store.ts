@@ -34,6 +34,7 @@ export function emptyProject(id: string, name: string): Project {
 
 function demoProject(): Project {
   const p = emptyProject("demo", "Demo");
+  p.duplos = ["90", "75", "65", "60"];
   p.customer = {
     name: "Pohjolan Teollisuus Oy", businessId: "3198472-6", industry: "Koneenvalmistus", address: "Teollisuustie 14, 33720 Tampere", website: "pohjolanteollisuus.example",
     opportunityName: "ERP-uudistus 2027 – Finance & Supply Chain", phase: "Scope-työpaja", goDate: "2026-10-06", goDecider: "Business Line Director",

@@ -77,6 +77,8 @@ export function HomePage() {
   const [filter, setFilter] = useState<"kaikki" | "nostetut" | "avoimet">("kaikki");
   const [optDuplo, setOptDuplo] = useState<string>("kaikki");
   const [delSearch, setDelSearch] = useState("");
+  const [deliverablesOpen, setDeliverablesOpen] = useState(false);
+  const [deliverableType, setDeliverableType] = useState<string | null>(null);
   const [sumTab, setSumTab] = useState<"yhteenveto" | "tarjous">("yhteenveto");
   const [lockOpen, setLockOpen] = useState(false);
   const [lockNote, setLockNote] = useState("");
@@ -246,10 +248,27 @@ export function HomePage() {
   };
   const triggered = ALL_LEGOS.flatMap((l) => l.e.flatMap((e) => [...(trig(e.tr) ? [{ id: e.id, name: e.t, l, kind: "Epic" }] : []), ...e.f.filter((f) => trig(f.tr)).map((f) => ({ id: f.id, name: f.t, l, kind: "Function" }))]));
   const trigInScope = triggered.filter((x) => legoInScope(x.l));
+  const scopeQuestions = PARAMS.filter((p) => p.id !== "edi" && p.id !== "apInvoices");
+  const primaryDuplos = DUPLOS.slice(0, 5);
+  const additionalDuplos = DUPLOS.slice(5);
   const scopeEpics = model.scopeLegos.flatMap((l) => l.e);
   const approvedSet = new Set(approved);
   const approvedCount = scopeEpics.filter((e) => approvedSet.has(e.id)).length;
   const discCount = (legoId: string) => project.discussions.filter((d) => (d.target.lego === legoId || (d.target.epic && EPIC_BY_ID[d.target.epic]?.lego.id === legoId)) && (seller || d.visibility === "Asiakkaalle näkyvä")).length;
+
+  const duploCard = (d: (typeof DUPLOS)[number]) => {
+    const on = duplos.includes(d.id);
+    return (
+        <button key={d.id} type="button" aria-pressed={on} onClick={() => setDuplos((p) => toggleIn(p, d.id))}
+        className={cn("flex h-full min-h-20 flex-col justify-between rounded-xl border p-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-ring", on ? "border-primary/60 bg-primary/5 hover:bg-primary/10" : "border-border bg-background hover:border-primary/40 hover:bg-accent/50")}>
+        <span className="flex w-full items-start justify-between gap-2">
+          <span className="min-w-0 text-sm font-semibold leading-snug">{d.fi}</span>
+          <span className={cn("grid size-5 shrink-0 place-items-center rounded-md border", on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>{on ? <Check className="size-3.5" aria-hidden="true" /> : <Plus className="size-3.5 text-muted-foreground" aria-hidden="true" />}</span>
+        </span>
+        <span className="mt-2 text-xs text-muted-foreground">{d.e2e} · {d.seq.slice(0, 2)} · {d.l.reduce((a, l) => a + l.e.length, 0)} Epiciä</span>
+      </button>
+    );
+  };
 
   const navBtn = ({ k, label, n, badge, lock }: { k: string; label: string; n: number; badge?: number; lock?: boolean }) => (
     <button key={k} type="button" onClick={() => go(k)} aria-current={curView === k ? "page" : undefined}
@@ -310,33 +329,124 @@ export function HomePage() {
         {curView === "t60" && <TicketsSection key={`${project.id}-${focusId}`} initialId={focusId} go={go} />}
 
         {curView === "lahto" && (
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
-            <div>
-              <h1 className="mb-1 text-2xl font-semibold tracking-tight">Lähtötiedot</h1>
-              <p className="mb-6 text-sm text-muted-foreground">{PARAMS.length} kysymystä · {trigInScope.length} optiota nostettu valituilta alueilta</p>
-              <ol className="divide-y divide-border rounded-lg border border-border bg-card">
-                {PARAMS.map((p, i) => {
+          <div className="space-y-4">
+            <header className="overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-card p-4 sm:p-5">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div className="max-w-2xl">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Projektin määrittely</p>
+                  <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Lähtötiedot</h1>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Valitse projektin prosessialueet ja täydennä toimintaympäristön tiedot. Valinnat muodostavat selkeän lähtökohdan scopelle ja päivittyvät myös Prosessikartalle.</p>
+                </div>
+                <div className="flex gap-3">
+                  <div className="min-w-28 rounded-xl border border-border/80 bg-background/80 px-3 py-2">
+                    <div className="text-xs text-muted-foreground">Prosessialueet</div>
+                    <div className="mt-1 text-xl font-semibold tabular-nums">{duplos.length}<span className="text-sm font-normal text-muted-foreground"> / {DUPLOS.length}</span></div>
+                  </div>
+                  <div className="min-w-28 rounded-xl border border-border/80 bg-background/80 px-3 py-2">
+                    <div className="text-xs text-muted-foreground">Nostetut prosessit</div>
+                    <div className="mt-1 text-xl font-semibold tabular-nums">{trigInScope.length}</div>
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            <section aria-labelledby="duplo-valinta-otsikko" className="rounded-2xl border border-border bg-card p-4">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 id="duplo-valinta-otsikko" className="text-lg font-semibold">Valitse prosessialueet</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Valitse mukaan tulevat Duplot. Sama valinta näkyy Prosessikartalla.</p>
+                </div>
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{duplos.length} valittu</span>
+              </div>
+              <div className="grid auto-rows-fr grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                {primaryDuplos.map(duploCard)}
+              </div>
+              {additionalDuplos.length > 0 && (
+                <Collapsible defaultOpen={false} className="mt-2">
+                  <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-ring">
+                    <span>
+                      <span className="block text-sm font-medium">Muut prosessialueet <span className="text-muted-foreground">({additionalDuplos.length})</span></span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{duplos.filter((id) => additionalDuplos.some((d) => d.id === id)).length} valittu</span>
+                    </span>
+                    <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-3">
+                    <div className="grid auto-rows-fr grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                      {additionalDuplos.map(duploCard)}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </section>
+
+            <Collapsible defaultOpen={false} className="rounded-xl border border-border bg-card">
+              <CollapsibleTrigger className="group flex w-full flex-wrap items-center justify-between gap-3 px-4 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-ring sm:px-4">
+                <span>
+                  <span className="block font-semibold">Suomen oletukset – EDI ja ostolaskut</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    EDI: {PARAMS.find((p) => p.id === "edi")?.options.find((o) => o.v === params.edi)?.label} · Ostolaskut: {PARAMS.find((p) => p.id === "apInvoices")?.options.find((o) => o.v === params.apInvoices)?.label}
+                  </span>
+                </span>
+                <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="border-t border-border px-4 sm:px-5">
+                <p className="py-2 text-sm text-muted-foreground">Suomen projektien oletusvastaukset. Muuta niitä, jos projektissa on tästä poikkeava tarve.</p>
+                <ol className="mb-3 divide-y divide-border rounded-lg border border-border">
+                  {PARAMS.filter((p) => p.id === "edi" || p.id === "apInvoices").map((p) => {
+                    const n = ALL_LEGOS.reduce((a, l) => a + l.e.filter((e) => e.tr.includes(p.id)).length + l.e.reduce((b, e) => b + e.f.filter((f) => f.tr.includes(p.id)).length, 0), 0);
+                    return (
+                      <li key={p.id} className="grid gap-3 p-3 md:grid-cols-[1fr_auto] md:items-center">
+                        <div className="flex gap-3"><span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold">{PARAMS.indexOf(p) + 1}</span><div className="min-w-0"><div id={`q-${p.id}`} className="font-medium">{p.q}</div><div className="mt-0.5 text-xs text-muted-foreground">Liittyy {n} katalogin prosessiin</div></div></div>
+                        <ToggleGroup type="single" variant="outline" value={params[p.id]} aria-labelledby={`q-${p.id}`} onValueChange={(v) => v && setParams((prev) => ({ ...prev, [p.id]: v }))}>
+                          {p.options.map((o) => <ToggleGroupItem key={o.v} value={o.v} className="px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">{o.label}</ToggleGroupItem>)}
+                        </ToggleGroup>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
+              <div>
+                <div className="mb-3">
+                  <h2 className="text-lg font-semibold tracking-tight">Toimintaympäristö</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">{scopeQuestions.length} kysymystä · {trigInScope.length} prosessia nostettu valituilta alueilta</p>
+                </div>
+                <ol className="divide-y divide-border rounded-xl border border-border bg-card">
+                {scopeQuestions.map((p) => {
                   const n = ALL_LEGOS.reduce((a, l) => a + l.e.filter((e) => e.tr.includes(p.id)).length + l.e.reduce((b, e) => b + e.f.filter((f) => f.tr.includes(p.id)).length, 0), 0);
                   return (
-                    <li key={p.id} className="grid gap-3 p-4 md:grid-cols-[1fr_auto] md:items-center">
-                      <div className="flex gap-3"><span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold">{i + 1}</span><div className="min-w-0"><div id={`q-${p.id}`} className="font-medium">{p.q}</div><div className="mt-0.5 text-xs text-muted-foreground">Liittyy {n} katalogin prosessiin</div></div></div>
+                    <li key={p.id} className="grid gap-3 p-3 md:grid-cols-[1fr_auto] md:items-center">
+                      <div className="flex gap-3"><span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold">{PARAMS.indexOf(p) + 1}</span><div className="min-w-0"><div id={`q-${p.id}`} className="font-medium">{p.q}</div><div className="mt-0.5 text-xs text-muted-foreground">Liittyy {n} katalogin prosessiin</div></div></div>
                       <ToggleGroup type="single" variant="outline" value={params[p.id]} aria-labelledby={`q-${p.id}`} onValueChange={(v) => v && setParams((prev) => ({ ...prev, [p.id]: v }))}>
                         {p.options.map((o) => <ToggleGroupItem key={o.v} value={o.v} className="px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">{o.label}</ToggleGroupItem>)}
                       </ToggleGroup>
                     </li>
                   );
                 })}
-              </ol>
-              <div className="mt-6 flex justify-end"><Button onClick={() => go("moduulit")}>Moduuleihin <ArrowRight /></Button></div>
+                </ol>
+                <div className="mt-6 flex justify-end"><Button onClick={() => go("moduulit")}>Moduuleihin <ArrowRight /></Button></div>
+              </div>
+              <Collapsible defaultOpen={false} role="complementary" aria-labelledby="nostetut" className="self-start rounded-xl border border-border bg-card lg:sticky lg:top-36">
+                  <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 p-4 text-left focus-visible:outline-2 focus-visible:outline-ring">
+                    <span>
+                      <span id="nostetut" className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="size-4 text-primary" aria-hidden="true" />Nostetut prosessit valituilla alueilla</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">{trigInScope.length} prosessia · avaa lista</span>
+                    </span>
+                    <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="border-t border-border px-4 pb-4 pt-3">
+                    <p className="mb-2 text-xs text-muted-foreground">Vastauksista johdetut prosessit auttavat tarkentamaan keskustelua.</p>
+                    <ul className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+                      {trigInScope.slice(0, 40).map((x) => <li key={x.id} className="rounded-lg border border-border bg-background p-3"><div className="text-sm font-medium">{x.name}</div><div className="mt-1 text-xs text-muted-foreground">{x.kind} · {x.id} · {DUPLO_BY_ID[x.l.owner].fi} › {x.l.fi}</div></li>)}
+                      {trigInScope.length === 0 && <li className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">Valituilla alueilla ei ole vielä vastauksiin liittyviä prosesseja.</li>}
+                      {trigInScope.length > 40 && <li className="text-xs text-muted-foreground">+ {trigInScope.length - 40} muuta</li>}
+                      {triggered.length > trigInScope.length && <li className="text-xs text-muted-foreground">{triggered.length - trigInScope.length} nostettua prosessia on valitsemattomilla alueilla.</li>}
+                    </ul>
+                  </CollapsibleContent>
+              </Collapsible>
             </div>
-            <aside aria-labelledby="nostetut" className="lg:pt-[68px]">
-              <h2 id="nostetut" className="mb-3 flex items-center gap-2 text-sm font-semibold"><Sparkles className="size-4 text-primary" aria-hidden="true" />Nostetut prosessit valituilla alueilla</h2>
-              <ul className="max-h-[70vh] space-y-2 overflow-y-auto pr-1">
-                {trigInScope.slice(0, 40).map((x) => <li key={x.id} className="rounded-md border border-border bg-card p-3"><div className="text-sm font-medium">{x.name}</div><div className="mt-1 text-xs text-muted-foreground">{x.kind} · {x.id} · {DUPLO_BY_ID[x.l.owner].fi} › {x.l.fi}</div></li>)}
-                {trigInScope.length > 40 && <li className="text-xs text-muted-foreground">+ {trigInScope.length - 40} muuta</li>}
-                {triggered.length > trigInScope.length && <li className="text-xs">{triggered.length - trigInScope.length} nostettua prosessia on alueilla, joita ei ole valittu.</li>}
-              </ul>
-            </aside>
           </div>
         )}
 
@@ -394,7 +504,7 @@ export function HomePage() {
                         return (
                           <button key={l.id} type="button" onClick={() => setFocusLego(l.id)} aria-pressed={focusLego === l.id} className={cn("rounded-md border bg-card px-2.5 py-1.5 text-left transition-shadow hover:shadow-sm focus-visible:outline-2 focus-visible:outline-ring", focusLego === l.id ? "border-primary ring-1 ring-primary" : "border-border", !legoInScope(L) && "opacity-70")}>
                             <span className="flex items-baseline justify-between gap-2"><span className="truncate text-sm font-medium">{l.fi}</span><span className="flex shrink-0 items-center gap-1.5 font-mono text-[10px] text-muted-foreground">{l.e.some((e) => partialText(e)?.out || (e.s === "S" && scopeOf(e) !== "S")) && <AlertTriangle className="size-3 text-amber-700" aria-label="Sisältää rajattuja Functioneita" />}{dc > 0 && <span className="rounded bg-muted px-1 font-sans">{dc} kesk.</span>}{l.id.slice(0, 5)}</span></span>
-                            <span className="mt-1 flex gap-0.5" aria-label={`${l.e.filter((e) => scopeOf(e) === "S").length} sisältyy, ${l.e.filter((e) => scopeOf(e) === "O").length} optiota`}>{l.e.map((e) => <span key={e.id} className={cn("h-1.5 flex-1 rounded-full", TONE[epicStatus(e)].dot)} />)}</span>
+                            <span className="mt-1 flex gap-0.5" aria-label={`${l.e.filter((e) => scopeOf(e) === "S").length} sisältyy, ${l.e.filter((e) => scopeOf(e) === "O").length} optiota`}>{l.e.map((e) => <span key={e.id} className="min-w-0 flex-1 text-center">{focusLego === l.id && <span className="mb-0.5 block truncate font-mono text-[10px] leading-none text-muted-foreground">{e.id.split(".")[2]}</span>}<span className={cn("block h-1.5 rounded-full", TONE[epicStatus(e)].dot, openEpic === e.id && "outline outline-2 outline-offset-1 outline-primary")} /></span>)}</span>
                           </button>
                         );
                       })}
@@ -431,7 +541,7 @@ export function HomePage() {
                   {lego.e.map((e) => {
                     const disc = project.discussions.filter((d) => d.target.epic === e.id && (seller || d.visibility === "Asiakkaalle näkyvä"));
                     return (
-                      <li key={e.id} id={`epic-${e.id}`} className={cn(openEpic === e.id && "bg-muted/40")}>
+                      <li key={e.id} id={`epic-${e.id}`} className={cn(openEpic === e.id && "rounded-lg border border-primary/70 bg-primary/10 shadow-sm")}>
                         <Collapsible open={openEpic === e.id} onOpenChange={(o) => setOpenEpic(o ? e.id : null)}>
                           <div className="flex items-start gap-1 pr-2 hover:bg-accent">
                           <CollapsibleTrigger className="group flex min-w-0 flex-1 items-start justify-between gap-3 p-3 text-left focus-visible:outline-2 focus-visible:outline-ring">
@@ -521,14 +631,19 @@ export function HomePage() {
                     );
                   })}
                 </ol>
-                <div className="border-t border-border p-4">
-                  <h3 className="mb-2 text-sm font-semibold">Legon deliverablet ({lego.dl.length})</h3>
-                  {lego.dl.length === 0 ? <p className="text-sm">Ei kytkettyjä deliverableja.</p> : (<>
-                    <div className="mb-2 flex flex-wrap gap-1.5">{DEL_ORDER.map((c) => { const n = lego.dl.filter((d) => d[1] === c).length; return n ? <span key={c} className="rounded border border-border px-1.5 py-0.5 text-xs"><span className="font-mono font-semibold">{c}</span> {DEL_TYPES[c]} {n}</span> : null; })}</div>
-                    <div className="relative mb-2"><Search className="pointer-events-none absolute left-2 top-2 size-4 text-muted-foreground" aria-hidden="true" /><Input aria-label="Hae deliverableja" value={delSearch} onChange={(e) => setDelSearch(e.target.value)} className="h-8 pl-8 text-sm" /></div>
-                    <ul className="max-h-64 space-y-1 overflow-y-auto">{lego.dl.filter((d) => d[0].toLowerCase().includes(delSearch.toLowerCase())).slice(0, 80).map((d, i) => <li key={i} className="flex items-start gap-2 text-xs"><abbr title={DEL_TYPES[d[1]]} className="grid size-5 shrink-0 place-items-center rounded border border-border bg-muted font-mono text-[10px] font-semibold no-underline">{d[1]}</abbr><span className="min-w-0">{d[0]}<span className="block text-[10px] text-muted-foreground">{CATALOG.fas[d[2]]}</span></span></li>)}</ul>
-                  </>)}
-                </div>
+                <Collapsible open={deliverablesOpen} onOpenChange={setDeliverablesOpen} className="border-t border-border">
+                  <CollapsibleTrigger className="group flex w-full items-center justify-between p-4 text-left focus-visible:outline-2 focus-visible:outline-ring">
+                    <h3 className="text-sm font-semibold">Legon deliverablet ({lego.dl.length})</h3>
+                    <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-4 pb-4">
+                    {lego.dl.length === 0 ? <p className="text-sm">Ei kytkettyjä deliverableja.</p> : (<>
+                      <div className="mb-2 flex flex-wrap gap-1.5">{DEL_ORDER.map((c) => { const n = lego.dl.filter((d) => d[1] === c).length; return n ? <button key={c} type="button" aria-pressed={deliverableType === c} onClick={() => { setDeliverableType((current) => current === c ? null : c); setDeliverablesOpen(true); }} className={cn("rounded border px-1.5 py-0.5 text-xs focus-visible:outline-2 focus-visible:outline-ring", deliverableType === c ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-accent")}><span className="font-mono font-semibold">{c}</span> {DEL_TYPES[c]} {n}</button> : null; })}</div>
+                      <div className="relative mb-2"><Search className="pointer-events-none absolute left-2 top-2 size-4 text-muted-foreground" aria-hidden="true" /><Input aria-label="Hae deliverableja" value={delSearch} onChange={(e) => setDelSearch(e.target.value)} className="h-8 pl-8 text-sm" /></div>
+                      <ul className="max-h-64 space-y-1 overflow-y-auto">{lego.dl.filter((d) => (!deliverableType || d[1] === deliverableType) && d[0].toLowerCase().includes(delSearch.toLowerCase())).slice(0, 80).map((d, i) => <li key={i} className="flex items-start gap-2 text-xs"><abbr title={DEL_TYPES[d[1]]} className="grid size-5 shrink-0 place-items-center rounded border border-border bg-muted font-mono text-[10px] font-semibold no-underline">{d[1]}</abbr><span className="min-w-0">{d[0]}<span className="block text-[10px] text-muted-foreground">{CATALOG.fas[d[2]]}</span></span></li>)}</ul>
+                    </>)}
+                  </CollapsibleContent>
+                </Collapsible>
               </aside>
             )}
           </div>
